@@ -32,10 +32,9 @@ async function run() {
       res.send(result);
     });
 
-    // create service treatmet
+    // create service treatmet and check if service is already exist
     app.post("/booking", async (req, res) => {
       const booking = req.body;
-      console.log(booking);
       const query = {
         treatment: booking.treatment,
         date: booking.date,
@@ -49,6 +48,20 @@ async function run() {
         res.send({ success: true, result: result });
       }
     });
+
+    // get a single day services 
+    app.get('/available', async(req, res) => {
+      const date = req.query.date || 'May 16, 2022';
+      // step 1: geta all services
+      const services = await serviceCollection.find().toArray();
+      // step 2 : get the booking of that day
+      const query = {date: date}
+      const bookings = await bookingCollection.find(query).toArray();
+
+
+      res.send(bookings)
+    })
+
   } finally {
     // client.close();
   }
