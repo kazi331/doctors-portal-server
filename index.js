@@ -30,6 +30,7 @@ async function run() {
       const cursor = serviceCollection.find(query);
       const result = await cursor.toArray();
       res.send(result);
+      console.log("Service Route");
     });
 
     // create service treatmet and check if service is already exist
@@ -49,27 +50,51 @@ async function run() {
       }
     });
 
-    // get a single day services 
-    app.get('/available', async(req, res) => {
-      const date = req.query.date || 'May 16, 2022';
+    // get a specific day services
+    app.get("/available", async (req, res) => {
+      // const date = req.query.date || "May 29, 2022";
+      const date = req.query.date;
       // step 1: geta all services
       const services = await serviceCollection.find().toArray();
-      // step 2 : get the booking of that day
-      const query = {date: date}
+      // step 2 : get the booking of a perticuler day
+      const query = { date: date };
       const bookings = await bookingCollection.find(query).toArray();
 
+      // step 3: for each service
+      services.forEach((service) => {
+        // step 4: match the service with booked - [{}, {}, {}, {}, {}, {}]
+        const bookedServices = bookings.filter(
+          (booked) => booked.treatment === service.name
+        );
+        // step 5: find add booked slots - ['', '', '',  '',  '', '']
+        const bookedSlots = bookedServices.map((book) => book.slot);
+        service.booked = bookedSlots; // creates a new array of slots
+        // step 6: filter available slots - ['', '', '',  '', '']
+        const available = service.slots.filter(
+          (slot) => !bookedSlots.includes(slot)
+        );
+        // service.available = available; // creates a new array into service as availabe
+        service.slots = available; // replace the previous slots just with avaialable slots
+      });
+      res.send(services);
+      console.log("availabe route");
+    });
 
-      res.send(bookings)
-    })
-
+    // get person based appointments
+    app.get("/appointments", async(req, res) => {
+      const email = req.query.email;
+      const query = {email:  email}
+      const result = await bookingCollection.find(query).toArray();
+      res.send(result);
+    });
   } finally {
-    // client.close();
   }
 }
 run().catch(console.dir);
 
 // Home  route
 app.get("/", (req, res) => {
+  console.log("Home route");
   res.send("Server is running fine  ");
 });
 // listen to port
