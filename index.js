@@ -8,7 +8,7 @@ app.use(express.json());
 const port = process.env.PORT || 5000;
 
 // mongodb config
-const uri = `mongodb+srv://${process.env.DB_USER}:${process.env.DB_PASS}@cluster0.wd208.mongodb.net/myFirstDatabase?retryWrites=true&w=majority`;
+const uri = `mongodb+srv://${process.env.DB_USER}:${process.env.DB_PASS}@cluster0.zwtgz.mongodb.net/?retryWrites=true&w=majority`;
 
 const client = new MongoClient(uri, {
   useNewUrlParser: true,
@@ -19,10 +19,8 @@ const client = new MongoClient(uri, {
 async function run() {
   try {
     await client.connect();
-    const serviceCollection = client
-      .db("treatmentService")
-      .collection("service");
-    const bookingCollection = client.db("consultation").collection("booking");
+    const serviceCollection = client.db("portal").collection("services");
+    const bookingCollection = client.db("portal").collection("bookings");
 
     //   find all services from db
     app.get("/service", async (req, res) => {
@@ -30,7 +28,6 @@ async function run() {
       const cursor = serviceCollection.find(query);
       const result = await cursor.toArray();
       res.send(result);
-      console.log("Service Route");
     });
 
     // create service treatmet and check if service is already exist
@@ -47,6 +44,7 @@ async function run() {
       } else {
         const result = await bookingCollection.insertOne(booking);
         res.send({ success: true, result: result });
+        console.log(result);
       }
     });
 
@@ -77,13 +75,12 @@ async function run() {
         service.slots = available; // replace the previous slots just with avaialable slots
       });
       res.send(services);
-      console.log("availabe route");
     });
 
     // get person based appointments
-    app.get("/appointments", async(req, res) => {
+    app.get("/appointments", async (req, res) => {
       const email = req.query.email;
-      const query = {email:  email}
+      const query = { email: email };
       const result = await bookingCollection.find(query).toArray();
       res.send(result);
     });
@@ -94,8 +91,7 @@ run().catch(console.dir);
 
 // Home  route
 app.get("/", (req, res) => {
-  console.log("Home route");
-  res.send("Server is running fine  ");
+  res.send("Doctors portal is running fine");
 });
 // listen to port
 app.listen(port, () => {
