@@ -18,16 +18,16 @@ const client = new MongoClient(uri, {
 });
 
 // jwt middleware 
-function verifyJWT (req, res, next){
+function verifyJWT(req, res, next) {
   const authHeader = req.headers.authorization;
-  if(!authHeader){
-    return res.status(401).send({Warning: 'UnAuthorized Request!!'})
+  if (!authHeader) {
+    return res.status(401).send({ Warning: 'UnAuthorized Request!!' })
   }
   const token = authHeader.split(' ')[1];
-  jwt.verify(token, process.env.JWT_SECRET , function(err, decoded) {
-   if(err){
-     return res.status(403).send({message: 'Forbidden Access!!'})
-   }
+  jwt.verify(token, process.env.JWT_SECRET, function (err, decoded) {
+    if (err) {
+      return res.status(403).send({ message: 'Forbidden Access!!' })
+    }
     console.log(decoded) // bar
     req.decoded = decoded;
     next();
@@ -64,7 +64,7 @@ async function run() {
       } else {
         const result = await bookingCollection.insertOne(booking);
         res.send({ success: true, result: result });
-        console.log(result);
+        // console.log(result);
       }
     });
 
@@ -105,51 +105,58 @@ async function run() {
       // console.log(token);
       // stop token hizaking
       const decodedEmail = req.decoded.email;
-      if(decodedEmail === email){
+      if (decodedEmail === email) {
         const query = { email: email };
         const result = await bookingCollection.find(query).toArray();
         return res.send(result);
-      }else{
-       return res.status(403).send({message: 'Forbidden Access!!'})
+      } else {
+        return res.status(403).send({ message: 'Forbidden Access!!' })
       }
-      
+
     });
 
     // delte appointments 
-    app.delete('/appointment/delete/:email', async(req, res) => {
+    app.delete('/appointment/delete/:email', async (req, res) => {
       const email = req.params.email;
-      
-      const query = {email: email};
+      const query = { email: email };
       const result = await bookingCollection.deleteOne(query);
       res.send(result);
     })
 
-// create or edit user on database 
-app.put('/user/:email', async(req, res) => {
-  const email = req.params.email;
-  const user = req.body;
-  const options = { upsert: true };
-  const filter = { email: email };
-  const update = { $set: user}
-  const result = await usersCollection.updateOne(filter, update, options);
-  const token = jwt.sign({email:email}, process.env.JWT_SECRET, {expiresIn: '1h'})
-  res.send({result, token});
-})
+    // create or edit user on database 
+    app.put('/user/:email', async (req, res) => {
+      const email = req.params.email;
+      const user = req.body;
+      const options = { upsert: true };
+      const filter = { email: email };
+      const update = { $set: user }
+      const result = await usersCollection.updateOne(filter, update, options);
+      const token = jwt.sign({ email: email }, process.env.JWT_SECRET, { expiresIn: '1h' })
+      res.send({ result, token });
+    })
 
-// load all users 
-app.get('/users', async(req, res) => {
-  const result = await usersCollection.find().toArray();
-  res.send(result)
-})
-app.get('/user/delete/:email', async(req, res) => {
-  const email = req.params.email;
-  console.log(email);
-  // const filter = {email: email}
-  // const result = await usersCollection.deleteOne(filter);
-  // res.send(result)
-})
+    // load all users 
+    app.get('/users', verifyJWT, async (req, res) => {
+      const result = await usersCollection.find().toArray();
+      res.send(result)
+    })
+    app.delete('/user/delete/:email', verifyJWT, async (req, res) => {
+      const email = req.params.email;
+      // console.log(email);
+      const filter = { email: email }
+      const result = await usersCollection.deleteOne(filter);
+      res.send(result)
+    })
 
-
+    // make user admin 
+    app.put('/user/admin/:email', verifyJWT, async(req, res) => {
+      const email = req.params.email;
+      // console.log(email);
+      const filter = {email: email}
+      const update = {$set: {role: 'admin'}}
+      const result = await usersCollection.updateOne(filter, update);
+      res.send(result);
+    })
 
 
 
