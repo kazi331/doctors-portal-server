@@ -132,6 +132,7 @@ async function run() {
       const update = { $set: user }
       const result = await usersCollection.updateOne(filter, update, options);
       const token = jwt.sign({ email: email }, process.env.JWT_SECRET, { expiresIn: '1h' })
+      console.log(token);
       res.send({ result, token });
     })
 
@@ -185,7 +186,7 @@ async function run() {
       const requester = await usersCollection.findOne({email: requesterEmail});
 
       if(email === requesterEmail || requester.role !== 'admin'){
-        res.status(403).send({message: "You can't remove yourself"});
+        res.status(403).send({message: "You can't remove yourself", reason: 'self'});
       }else{
         const filter = {email: email};
         const update = {$unset: {role: 1}};
@@ -203,7 +204,7 @@ run().catch(console.dir);
 app.get("/", (req, res) => {
   res.send("Doctors portal is running fine");
 });
-// listen to port
+// listen to port home
 app.listen(port, () => {
   console.log(`Port running at http://localhost:${port}`);
 });
