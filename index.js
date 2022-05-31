@@ -145,10 +145,10 @@ async function run() {
     app.delete('/user/delete/:email', verifyJWT, async (req, res) => {
       const email = req.params.email;
       const requesterEmail = req.decoded.email;
-      const requester = await usersCollection.findOne({email: requesterEmail});
-      if(requester.role !== 'admin'){
-        return res.status(403).send({message: 'notAllowed'})
-      }else{
+      const requester = await usersCollection.findOne({ email: requesterEmail });
+      if (requester.role !== 'admin') {
+        return res.status(403).send({ message: 'notAllowed' })
+      } else {
         const filter = { email: email }
         const result = await usersCollection.deleteOne(filter);
         res.send(result)
@@ -156,40 +156,40 @@ async function run() {
     })
 
     // check an existing user if he is admin 
-    app.get('/admin/:email', async(req, res) => {
+    app.get('/admin/:email', async (req, res) => {
       const email = req.params.email;
-      const user = await usersCollection.findOne({email: email});
+      const user = await usersCollection.findOne({ email: email });
       const isAdmin = user.role === 'admin';
-      res.send({admin: isAdmin})
+      res.send({ admin: isAdmin })
     })
 
     // make user admin 
-    app.put('/user/admin/:email', verifyJWT, async(req, res) => {
+    app.put('/user/admin/:email', verifyJWT, async (req, res) => {
       const email = req.params.email;
       // disallow normal user to make another admin 
       const requester = req.decoded.email;
-      const requesterAccount = await usersCollection.findOne({email: requester});
-      if(requesterAccount.role === 'admin'){
-        const filter = {email: email}
-        const update = {$set: {role: 'admin'}}
+      const requesterAccount = await usersCollection.findOne({ email: requester });
+      if (requesterAccount.role === 'admin') {
+        const filter = { email: email }
+        const update = { $set: { role: 'admin' } }
         const result = await usersCollection.updateOne(filter, update);
         res.send(result);
-      }else{
-        res.status(403).send({message: 'notAllowed'})
+      } else {
+        res.status(403).send({ message: 'notAllowed' })
       }
     })
 
     // remove as admin
-    app.put('/user/remove/:email', verifyJWT, async(req, res) => {
+    app.put('/user/remove/:email', verifyJWT, async (req, res) => {
       const email = req.params.email;
       const requesterEmail = req.decoded.email;
-      const requester = await usersCollection.findOne({email: requesterEmail});
+      const requester = await usersCollection.findOne({ email: requesterEmail });
 
-      if(email === requesterEmail || requester.role !== 'admin'){
-        res.status(403).send({message: "You can't remove yourself", reason: 'self'});
-      }else{
-        const filter = {email: email};
-        const update = {$unset: {role: 1}};
+      if (email === requesterEmail || requester.role !== 'admin') {
+        res.status(403).send({ message: "You can't remove yourself", reason: 'self' });
+      } else {
+        const filter = { email: email };
+        const update = { $unset: { role: 1 } };
         const result = await usersCollection.updateOne(filter, update);
         res.send(result);
       }
@@ -204,7 +204,8 @@ run().catch(console.dir);
 app.get("/", (req, res) => {
   res.send("Doctors portal is running fine");
 });
-// listen to port home
+
+// listen to port
 app.listen(port, () => {
   console.log(`Port running at http://localhost:${port}`);
 });
