@@ -1,7 +1,14 @@
 const express = require("express");
 const app = express();
 const cors = require("cors");
-const { MongoClient, ServerApiVersion } = require("mongodb");
+const { MongoClient, ServerApiVersion, ObjectId } = require("mongodb");
+const nodemailer = require('nodemailer');
+const mg = require('nodemailer-mailgun-transport');
+
+
+
+
+
 require("dotenv").config();
 var jwt = require('jsonwebtoken');
 const res = require("express/lib/response");
@@ -35,6 +42,17 @@ function verifyJWT(req, res, next) {
   });
 }
 
+
+// email sending codes 
+const auth = {
+  auth: {
+    api_key: '44555f899ee1df73011dcb0d523ef75b-27a562f9-705a307d',
+    domain: 'sandbox75ad1601568341078d50b9a494cf4733.mailgun.org'
+  }
+}
+const nodemailerMailgun = nodemailer.createTransport(mg(auth));
+
+
 // main routes ///////
 async function run() {
   try {
@@ -46,12 +64,12 @@ async function run() {
 
 
 
-    const verifyAdmin = async(req, res, next) => {
+    const verifyAdmin = async (req, res, next) => {
       const requesterEmail = req.decoded.email;
       const requester = await usersCollection.findOne({ email: requesterEmail });
-      if(requester.role !== 'admin'){
-        return res.status(403).send({messge: 'forbidden'})
-      }else{
+      if (requester.role !== 'admin') {
+        return res.status(403).send({ messge: 'forbidden' })
+      } else {
         next();
       }
     }
@@ -157,12 +175,12 @@ async function run() {
     // delete user
     app.delete('/user/delete/:email', verifyJWT, async (req, res) => {
       const email = req.params.email;
+      const filter = { email: email }
       const requesterEmail = req.decoded.email;
       const requester = await usersCollection.findOne({ email: requesterEmail });
-      if (requester.role !== 'admin') {
+      if (requester.role !== 'admin' || requesterEmail === email) {
         return res.status(403).send({ message: 'notAllowed' })
       } else {
-        const filter = { email: email }
         const result = await usersCollection.deleteOne(filter);
         res.send(result)
       }
@@ -208,7 +226,7 @@ async function run() {
     })
 
     // add doctor 
-    app.post('/doctor', verifyJWT, async (req, res) => {
+    app.post('/doctor', verifyJWT, verifyAdmin, async (req, res) => {
       const doctor = req.body;
       const filterEmail = doctor.email;
       const exist = await doctorCollection.findOne({ email: filterEmail });
@@ -226,9 +244,9 @@ async function run() {
     })
 
     // delete doctor 
-    app.delete('/doctor/:id', async(req, res) =>{
+    app.delete('/doctor/:id', async (req, res) => {
       const id = req.params.id;
-      const result = await doctorCollection.findOne({_id: Object(id)});
+      const result = await doctorCollection.deleteOne({ _id: ObjectId(id) });
       res.send(result)
     })
 
@@ -238,6 +256,28 @@ async function run() {
   }
 }
 run().catch(console.dir);
+
+// mail test 
+const mailbody = {
+  from: 'myemail@example.com',
+  to: 'kazisharifulislam52@gmail.com', // An array if you have multiple recipients.
+  subject: 'Hey you, awesome!',
+  //You can use "html:" to send HTML email content. It's magic!
+  html: '<b>Wow Big powerful letters</b>',
+  //You can use "text:" to send plain-text content. It's oldschool!
+  text: 'Mailgun rocks, pow pow! kazisharifulislam52@gmail.com'
+}
+app.get('/email', async (req, res) => {
+  nodemailerMailgun.sendMail(mailbody, (err, info) => {
+    if (err) {
+      res.send(err)
+    }
+    else {
+      res.send(info)
+    }
+  });
+})
+
 
 // Home  route
 app.get("/", (req, res) => {
