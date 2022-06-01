@@ -4,6 +4,7 @@ const cors = require("cors");
 const { MongoClient, ServerApiVersion } = require("mongodb");
 require("dotenv").config();
 var jwt = require('jsonwebtoken');
+const res = require("express/lib/response");
 app.use(cors());
 app.use(express.json());
 const port = process.env.PORT || 5000;
@@ -43,6 +44,17 @@ async function run() {
     const usersCollection = client.db("portal").collection("users");
     const doctorCollection = client.db("portal").collection("doctors");
 
+
+
+    const verifyAdmin = async(req, res, next) => {
+      const requesterEmail = req.decoded.email;
+      const requester = await usersCollection.findOne({ email: requesterEmail });
+      if(requester.role !== 'admin'){
+        return res.status(403).send({messge: 'forbidden'})
+      }else{
+        next();
+      }
+    }
     //   find all services from db
     app.get("/service", async (req, res) => {
       const query = {};
@@ -185,7 +197,6 @@ async function run() {
       const email = req.params.email;
       const requesterEmail = req.decoded.email;
       const requester = await usersCollection.findOne({ email: requesterEmail });
-
       if (email === requesterEmail || requester.role !== 'admin') {
         res.status(403).send({ message: "You can't remove yourself", reason: 'self' });
       } else {
@@ -197,16 +208,31 @@ async function run() {
     })
 
     // add doctor 
-    app.post('/doctor', async(req, res) => {
+    app.post('/doctor', verifyJWT, async (req, res) => {
       const doctor = req.body;
-      const result = await doctorCollection.insertOne(doctor);
-      res.send(result);
+      const filterEmail = doctor.email;
+      const exist = await doctorCollection.findOne({ email: filterEmail });
+      if (exist) {
+        return res.send({ message: 'Already exist' })
+      } else {
+        const result = await doctorCollection.insertOne(doctor);
+        res.send(result);
+      }
     })
     // find all doctors 
-    app.get('/doctors', async(req, res)=> {
+    app.get('/doctors', verifyJWT, verifyAdmin, async (req, res) => {
       const result = await doctorCollection.find().toArray();
       res.send(result);
     })
+
+    // delete doctor 
+    app.delete('/doctor/:id', async(req, res) =>{
+      const id = req.params.id;
+      const result = await doctorCollection.findOne({_id: Object(id)});
+      res.send(result)
+    })
+
+
 
   } finally {
   }
