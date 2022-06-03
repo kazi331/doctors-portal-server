@@ -4,12 +4,11 @@ const cors = require("cors");
 const { MongoClient, ServerApiVersion, ObjectId } = require("mongodb");
 const nodemailer = require('nodemailer');
 const mg = require('nodemailer-mailgun-transport');
-
-
-
-
-
 require("dotenv").config();
+const stripe = require('stripe')(process.env.STRIPE_SECRET_KEY);
+
+
+
 var jwt = require('jsonwebtoken');
 const res = require("express/lib/response");
 app.use(cors());
@@ -18,7 +17,6 @@ const port = process.env.PORT || 5000;
 
 // mongodb config
 const uri = `mongodb+srv://${process.env.DB_USER}:${process.env.DB_PASS}@cluster0.zwtgz.mongodb.net/?retryWrites=true&w=majority`;
-
 const client = new MongoClient(uri, {
   useNewUrlParser: true,
   useUnifiedTopology: true,
@@ -46,11 +44,44 @@ function verifyJWT(req, res, next) {
 // email sending codes 
 const auth = {
   auth: {
-    api_key: '44555f899ee1df73011dcb0d523ef75b-27a562f9-705a307d',
-    domain: 'sandbox75ad1601568341078d50b9a494cf4733.mailgun.org'
+    api_key: process.env.MAILGUN_API_KEY,
+    domain: process.env.MAILGUN_DOMAIN
   }
 }
 const nodemailerMailgun = nodemailer.createTransport(mg(auth));
+const sendBookingEmail = booking => {
+  const { treatment, email, date, slot, patientName } = booking;
+
+  const emailBody = {
+    from: process.env.EMAIL_SENDER,
+    to: email,
+    subject: `Your appointment for ${treatment} on ${date} at ${slot} is confirmed.`,
+    text: `Your appointment for ${treatment} on ${date} at ${slot} is confirmed.`,
+    html: `
+      <div>
+      <h2>Hello ${patientName}, </h2>
+      <p>Your appointment for ${treatment} on ${date} at ${slot} is confirmed.</p>
+      <p>We are looking to see you on ${date} at ${slot}.</p>
+      <br />
+      <h3>Our Address</h3>
+      <p>Head Office: Dhaka, Bangladesh</p>
+      <p>Phone: 01612178331</p>
+      <p>Web: https://web.programming-hero.com</p>
+      </div>
+    `
+  }
+
+  nodemailerMailgun.sendMail(emailBody, (err, info) => {
+    if (err) {
+      console.log(`Error`, err);
+    }
+    else {
+      console.log('response', info);
+    }
+  });
+}
+
+
 
 
 // main routes ///////
@@ -93,11 +124,29 @@ async function run() {
       if (exist) {
         return res.send({ success: false, booking: exist });
       } else {
+        // console.log('sending email');
+        sendBookingEmail(booking);
         const result = await bookingCollection.insertOne(booking);
         res.send({ success: true, result: result });
         // console.log(result);
       }
     });
+
+
+
+    // payment with stripe 
+    app.post('/create-payment-intent', async(req, res) =>{
+      const {price} = req.body;
+      const paymentIntent = await stripe.paymentIntents.create({
+        amount: price*100,
+        currency: 'usd',
+        payment_method_types: ['card']
+      })
+      res.send({clientSecret: paymentIntent.client_secret})
+    })
+
+
+
 
     // get a specific day services
     app.get("/available", async (req, res) => {
@@ -131,20 +180,34 @@ async function run() {
     // get person based appointments
     app.get("/appointments", verifyJWT, async (req, res) => {
       const email = req.query.email;
-      // const authorization =  req.headers.authorization;
-      // const token = authorization.split(' ')[1];
-      // console.log(token);
-      // stop token hizaking
       const decodedEmail = req.decoded.email;
       if (decodedEmail === email) {
         const query = { email: email };
         const result = await bookingCollection.find(query).toArray();
-        return res.send(result);
+        return res.send(result.reverse());
       } else {
         return res.status(403).send({ message: 'Forbidden Access!!' })
       }
-
     });
+
+    // find single booking info for payment
+    app.get('/booking/:id', verifyJWT, async(req, res) => {
+      const id = req.params.id;
+      const filter = {_id: ObjectId(id)}
+      const result = await bookingCollection.findOne(filter);
+      res.send(result);
+    })
+
+    // make appointment paid 
+    app.patch('/appointment/:id', async(req, res) => {
+      const id = req.params.id;
+      const filter = {_id: ObjectId(id)};
+      const transactionId = req.body.transactionId;
+      console.log(req.body, transactionId);
+      const update = {$set: {paid: true, transactionId: transactionId}};
+      const result = await bookingCollection.updateOne(filter, update);
+      res.send(result);
+    })
 
     // delte appointments 
     app.delete('/appointment/delete/:email', async (req, res) => {
@@ -162,8 +225,8 @@ async function run() {
       const filter = { email: email };
       const update = { $set: user }
       const result = await usersCollection.updateOne(filter, update, options);
-      const token = jwt.sign({ email: email }, process.env.JWT_SECRET, { expiresIn: '1h' })
-      console.log(token);
+      const token = jwt.sign({ email: email }, process.env.JWT_SECRET, { expiresIn: '1d' })
+      // console.log(token);
       res.send({ result, token });
     })
 
@@ -186,10 +249,18 @@ async function run() {
       }
     })
 
+      // find user profile 
+    app.get('/user/:email', async(req, res) => {
+      const email = req.params.email;
+      const user = await usersCollection.findOne({email: email});
+      res.send(user);
+    })
+
     // check an existing user if he is admin 
     app.get('/admin/:email', async (req, res) => {
       const email = req.params.email;
       const user = await usersCollection.findOne({ email: email });
+      // console.log(user);
       const isAdmin = user.role === 'admin';
       res.send({ admin: isAdmin })
     })
@@ -256,28 +327,6 @@ async function run() {
   }
 }
 run().catch(console.dir);
-
-// mail test 
-const mailbody = {
-  from: 'myemail@example.com',
-  to: 'kazisharifulislam52@gmail.com', // An array if you have multiple recipients.
-  subject: 'Hey you, awesome!',
-  //You can use "html:" to send HTML email content. It's magic!
-  html: '<b>Wow Big powerful letters</b>',
-  //You can use "text:" to send plain-text content. It's oldschool!
-  text: 'Mailgun rocks, pow pow! kazisharifulislam52@gmail.com'
-}
-app.get('/email', async (req, res) => {
-  nodemailerMailgun.sendMail(mailbody, (err, info) => {
-    if (err) {
-      res.send(err)
-    }
-    else {
-      res.send(info)
-    }
-  });
-})
-
 
 // Home  route
 app.get("/", (req, res) => {
